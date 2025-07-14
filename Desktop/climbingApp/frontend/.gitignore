@@ -29,6 +29,7 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.example
 .env.*.local
 config.local.js
 config.local.json
