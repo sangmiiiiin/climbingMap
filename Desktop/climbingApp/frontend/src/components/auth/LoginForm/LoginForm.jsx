@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { 
   Box, 
   TextField, 
@@ -26,73 +26,150 @@ function LoginForm() {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState({})
+  const [touchedFields, setTouchedFields] = useState({})
   const [loading, setLoading] = useState(false)
   
   const { login } = useAuth()
 
+  // 이메일 유효성 검사 정규식 패턴
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+
+  // 비밀번호 유효성 검사 함수
+  const validatePassword = (password) => {
+    const minLength = 8
+    const hasUpperCase = /[A-Z]/.test(password)
+    const hasLowerCase = /[a-z]/.test(password)
+    const hasNumbers = /\d/.test(password)
+    const hasNonalphas = /\W/.test(password)
+    
+    if (password.length === 0) {
+      return '비밀번호를 입력해주세요'
+    }
+    if (password.length < minLength) {
+      return '비밀번호는 8자 이상이어야 합니다'
+    }
+    if (!hasUpperCase) {
+      return '대문자를 포함해야 합니다'
+    }
+    if (!hasLowerCase) {
+      return '소문자를 포함해야 합니다'
+    }
+    if (!hasNumbers) {
+      return '숫자를 포함해야 합니다'
+    }
+    if (!hasNonalphas) {
+      return '특수문자를 포함해야 합니다'
+    }
+    return null
+  }
+
+  // 이메일 유효성 검사 함수
+  const validateEmail = (email) => {
+    if (!email) {
+      return '이메일을 입력해주세요'
+    }
+    if (!emailPattern.test(email)) {
+      return '올바른 이메일 형식을 입력해주세요'
+    }
+    return null
+  }
+
+  // 실시간 유효성 검사
+  const validateField = useCallback((name, value) => {
+    let error = null
+    
+    if (name === 'email') {
+      error = validateEmail(value)
+    } else if (name === 'password') {
+      error = validatePassword(value)
+    }
+    
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }))
+    
+    return error === null
+  }, [])
+
+  // 입력 값 변경 처리 및 실시간 유효성 검사
   const handleChange = (e) => {
     const { name, value } = e.target
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
     }))
     
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }))
-    }
+    // 필드를 터치됨으로 표시
+    setTouchedFields(prev => ({
+      ...prev,
+      [name]: true
+    }))
+    
+    // 실시간 유효성 검사 수행
+    validateField(name, value)
   }
 
-  const validateForm = () => {
-    const newErrors = {}
-    
-    if (!formData.email) {
-      newErrors.email = '이메일을 입력해주세요'
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = '올바른 이메일 형식이 아닙니다'
-    }
-    
-    if (!formData.password) {
-      newErrors.password = '비밀번호를 입력해주세요'
-    } else if (formData.password.length < 6) {
-      newErrors.password = '비밀번호는 6자 이상이어야 합니다'
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
+  // 폼 제출 처리
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!validateForm()) return
+    // 모든 필드 유효성 검사
+    const emailError = validateEmail(formData.email)
+    const passwordError = validatePassword(formData.password)
+    
+    setErrors({
+      email: emailError,
+      password: passwordError
+    })
+    
+    // 모든 필드를 터치됨으로 표시
+    setTouchedFields({
+      email: true,
+      password: true
+    })
+    
+    if (emailError || passwordError) {
+      return
+    }
     
     setLoading(true)
+    
     try {
       const result = await login(formData)
       if (result.success) {
-        // 로그인 성공 시 처리 (예: 홈으로 이동)
         console.log('로그인 성공')
       } else {
-        setErrors({ general: result.error || '로그인에 실패했습니다.' })
+        setErrors(prev => ({
+          ...prev,
+          general: result.error || '로그인에 실패했습니다.'
+        }))
       }
     } catch (error) {
-      setErrors({ general: '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.' })
+      setErrors(prev => ({
+        ...prev,
+        general: '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.'
+      }))
     } finally {
       setLoading(false)
     }
   }
 
+  // 폼이 유효한지 확인
+  const isFormValid = !errors.email && !errors.password && formData.email && formData.password
+
   const handleGoogleLogin = async () => {
     setLoading(true)
+    setErrors(prev => ({ ...prev, general: '' }))
     try {
       // Google 로그인 로직 구현 예정
       console.log('Google 로그인 시도')
     } catch (error) {
-      setErrors({ general: 'Google 로그인에 실패했습니다.' })
+      setErrors(prev => ({
+        ...prev,
+        general: 'Google 로그인에 실패했습니다.'
+      }))
     } finally {
       setLoading(false)
     }
@@ -100,11 +177,15 @@ function LoginForm() {
 
   const handleKakaoLogin = async () => {
     setLoading(true)
+    setErrors(prev => ({ ...prev, general: '' }))
     try {
       // Kakao 로그인 로직 구현 예정
       console.log('Kakao 로그인 시도')
     } catch (error) {
-      setErrors({ general: 'Kakao 로그인에 실패했습니다.' })
+      setErrors(prev => ({
+        ...prev,
+        general: 'Kakao 로그인에 실패했습니다.'
+      }))
     } finally {
       setLoading(false)
     }
@@ -121,14 +202,14 @@ function LoginForm() {
         px: { xs: 2, sm: 0 }
       }}
     >
-      {/* Error Alert */}
+      {/* 에러 알림 */}
       {errors.general && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {errors.general}
         </Alert>
       )}
 
-      {/* Email Field */}
+      {/* 이메일 필드 */}
       <TextField
         name="email"
         type="email"
@@ -138,32 +219,41 @@ function LoginForm() {
         error={!!errors.email}
         helperText={errors.email}
         fullWidth
+        inputProps={{
+          'aria-label': '이메일 입력',
+          'aria-describedby': errors.email ? 'email-error' : undefined,
+          'aria-invalid': !!errors.email
+        }}
         sx={{
           mb: 2,
           '& .MuiOutlinedInput-root': {
             borderRadius: 2,
-            bgcolor: '#f9fafb',
+            bgcolor: touchedFields.email ? (errors.email ? '#fef2f2' : '#f0f9ff') : '#f9fafb',
             '& fieldset': {
-              borderColor: '#e5e7eb'
+              borderColor: errors.email ? '#ef4444' : (touchedFields.email && !errors.email ? '#10b981' : '#e5e7eb')
             },
             '&:hover fieldset': {
-              borderColor: '#667eea'
+              borderColor: errors.email ? '#ef4444' : '#667eea'
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#667eea'
+              borderColor: errors.email ? '#ef4444' : '#667eea'
             }
+          },
+          '& .MuiFormHelperText-root': {
+            fontWeight: 500,
+            color: errors.email ? '#ef4444' : '#10b981'
           }
         }}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <Email sx={{ color: '#6b7280' }} />
+              <Email sx={{ color: errors.email ? '#ef4444' : (touchedFields.email && !errors.email ? '#10b981' : '#6b7280') }} />
             </InputAdornment>
           )
         }}
       />
 
-      {/* Password Field */}
+      {/* 비밀번호 필드 */}
       <TextField
         name="password"
         type={showPassword ? 'text' : 'password'}
@@ -173,26 +263,35 @@ function LoginForm() {
         error={!!errors.password}
         helperText={errors.password}
         fullWidth
+        inputProps={{
+          'aria-label': '비밀번호 입력',
+          'aria-describedby': errors.password ? 'password-error' : undefined,
+          'aria-invalid': !!errors.password
+        }}
         sx={{
           mb: 3,
           '& .MuiOutlinedInput-root': {
             borderRadius: 2,
-            bgcolor: '#f9fafb',
+            bgcolor: touchedFields.password ? (errors.password ? '#fef2f2' : '#f0f9ff') : '#f9fafb',
             '& fieldset': {
-              borderColor: '#e5e7eb'
+              borderColor: errors.password ? '#ef4444' : (touchedFields.password && !errors.password ? '#10b981' : '#e5e7eb')
             },
             '&:hover fieldset': {
-              borderColor: '#667eea'
+              borderColor: errors.password ? '#ef4444' : '#667eea'
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#667eea'
+              borderColor: errors.password ? '#ef4444' : '#667eea'
             }
+          },
+          '& .MuiFormHelperText-root': {
+            fontWeight: 500,
+            color: errors.password ? '#ef4444' : '#10b981'
           }
         }}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <Lock sx={{ color: '#6b7280' }} />
+              <Lock sx={{ color: errors.password ? '#ef4444' : (touchedFields.password && !errors.password ? '#10b981' : '#6b7280') }} />
             </InputAdornment>
           ),
           endAdornment: (
@@ -201,6 +300,7 @@ function LoginForm() {
                 onClick={() => setShowPassword(!showPassword)}
                 edge="end"
                 sx={{ color: '#6b7280' }}
+                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
               >
                 {showPassword ? <VisibilityOff /> : <Visibility />}
               </IconButton>
@@ -209,30 +309,33 @@ function LoginForm() {
         }}
       />
 
-      {/* Login Button */}
+      {/* 로그인 버튼 */}
       <Button
         type="submit"
         variant="contained"
         fullWidth
-        disabled={loading}
+        disabled={loading || !isFormValid}
         sx={{
           py: 1.5,
           mb: 2,
           borderRadius: 2,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: (loading || !isFormValid) ? '#d1d5db' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           fontWeight: 600,
           fontSize: 16,
           textTransform: 'none',
-          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+          boxShadow: (loading || !isFormValid) ? 'none' : '0 4px 12px rgba(102, 126, 234, 0.4)',
+          transition: 'all 0.2s ease-in-out',
           '&:hover': {
-            background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
-            boxShadow: '0 6px 16px rgba(102, 126, 234, 0.6)'
+            background: (loading || !isFormValid) ? '#d1d5db' : 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+            boxShadow: (loading || !isFormValid) ? 'none' : '0 6px 16px rgba(102, 126, 234, 0.6)'
           },
           '&:disabled': {
             background: '#d1d5db',
-            boxShadow: 'none'
+            boxShadow: 'none',
+            color: '#9ca3af'
           }
         }}
+        aria-label="로그인 버튼"
       >
         {loading ? <CircularProgress size={24} color="inherit" /> : '로그인'}
       </Button>
