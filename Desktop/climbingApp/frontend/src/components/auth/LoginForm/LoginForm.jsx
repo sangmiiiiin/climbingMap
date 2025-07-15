@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useState, useCallback } from 'react'
 import { 
   Box, 
   TextField, 
@@ -27,10 +26,10 @@ function LoginForm() {
   
   const { login } = useAuth()
 
-  // Email validation regex pattern
+  // 이메일 유효성 검사 정규식 패턴
   const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
-  // Password validation function
+  // 비밀번호 유효성 검사 함수
   const validatePassword = (password) => {
     const minLength = 8
     const hasUpperCase = /[A-Z]/.test(password)
