@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import { 
   Box, 
   TextField, 
@@ -17,9 +18,20 @@ import {
   VisibilityOff,
   Google
 } from '@mui/icons-material'
-import { useAuth } from '../../../hooks/useAuth'
+import { 
+  loginAsync, 
+  clearError, 
+  selectAuthLoading, 
+  selectAuthError, 
+  selectIsAuthenticated 
+} from '../../../store/slices/authSlice'
 
 function LoginForm() {
+  const dispatch = useDispatch()
+  const loading = useSelector(selectAuthLoading)
+  const authError = useSelector(selectAuthError)
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -27,9 +39,6 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState({})
   const [touchedFields, setTouchedFields] = useState({})
-  const [loading, setLoading] = useState(false)
-  
-  const { login } = useAuth()
 
   // 이메일 유효성 검사 정규식 패턴
   const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
@@ -134,60 +143,63 @@ function LoginForm() {
       return
     }
     
-    setLoading(true)
-    
-    try {
-      const result = await login(formData)
-      if (result.success) {
-        console.log('로그인 성공')
-      } else {
-        setErrors(prev => ({
-          ...prev,
-          general: result.error || '로그인에 실패했습니다.'
-        }))
-      }
-    } catch (error) {
-      setErrors(prev => ({
-        ...prev,
-        general: '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.'
-      }))
-    } finally {
-      setLoading(false)
-    }
+    // Redux dispatch를 사용한 로그인 처리
+    dispatch(loginAsync(formData))
   }
+
+  // 컴포넌트 마운트 시 에러 클리어 및 인증 상태 처리
+  useEffect(() => {
+    // 컴포넌트 마운트 시 에러 클리어
+    if (authError) {
+      dispatch(clearError())
+    }
+  }, [dispatch, authError])
+
+  // 인증 성공 시 처리
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('로그인 성공 - 메인 페이지로 이동')
+      // 현재 프로젝트에서는 단순 state 기반 네비게이션 사용
+      // 실제 프로젝트에서는 React Router를 사용하여 navigate('/dashboard') 등으로 처리
+    }
+  }, [isAuthenticated])
+
+  // 입력값 변경 시 에러 클리어
+  useEffect(() => {
+    if (authError) {
+      dispatch(clearError())
+    }
+  }, [formData.email, formData.password, dispatch, authError])
+
+  // 컴포넌트 언마운트 시 클리어
+  useEffect(() => {
+    return () => {
+      if (authError) {
+        dispatch(clearError())
+      }
+    }
+  }, [dispatch, authError])
 
   // 폼이 유효한지 확인
   const isFormValid = !errors.email && !errors.password && formData.email && formData.password
 
   const handleGoogleLogin = async () => {
-    setLoading(true)
-    setErrors(prev => ({ ...prev, general: '' }))
+    dispatch(clearError())
     try {
       // Google 로그인 로직 구현 예정
       console.log('Google 로그인 시도')
     } catch (error) {
-      setErrors(prev => ({
-        ...prev,
-        general: 'Google 로그인에 실패했습니다.'
-      }))
-    } finally {
-      setLoading(false)
+      console.error('Google 로그인 실패:', error)
     }
   }
 
   const handleKakaoLogin = async () => {
-    setLoading(true)
-    setErrors(prev => ({ ...prev, general: '' }))
+    dispatch(clearError())
     try {
       // Kakao 로그인 로직 구현 예정
       console.log('Kakao 로그인 시도')
     } catch (error) {
-      setErrors(prev => ({
-        ...prev,
-        general: 'Kakao 로그인에 실패했습니다.'
-      }))
-    } finally {
-      setLoading(false)
+      console.error('Kakao 로그인 실패:', error)
     }
   }
 
@@ -203,9 +215,9 @@ function LoginForm() {
       }}
     >
       {/* 에러 알림 */}
-      {errors.general && (
+      {(errors.general || authError) && (
         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-          {errors.general}
+          {errors.general || authError}
         </Alert>
       )}
 
